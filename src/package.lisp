@@ -21,7 +21,7 @@
 
 (defpackage #:swank-client
   (:documentation "A client interface to Swank servers.")
-  (:use #:common-lisp #:com.google.base)
+  (:use #:common-lisp #:alexandria)
   (:export #:swank-connection
            #:slime-connect
            #:slime-close
