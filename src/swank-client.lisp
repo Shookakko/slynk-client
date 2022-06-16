@@ -56,7 +56,7 @@
                   :initform (incf *thread-offset* +maximum-thread-count+)
                   :type (integer 0 *)
                   :documentation
-"All threads for this connection are presented to Emacs with this value added to
+		  "All threads for this connection are presented to Emacs with this value added to
 their thread ID.")
    (continuation-counter :accessor continuation-counter
                          :initform 0
@@ -66,7 +66,7 @@ their thread ID.")
                       :initform '()
                       :type list
                       :documentation
-"List of (ID, continuation) pairs, one for each evaluation in progress. Used to
+		      "List of (ID, continuation) pairs, one for each evaluation in progress. Used to
 match each returned value with the continuation it should be passed to.")
    (state :accessor state
           :initform :alive
@@ -75,7 +75,7 @@ match each returned value with the continuation it should be passed to.")
    (connection-lock :reader connection-lock
                     :initform (bordeaux-threads:make-lock)
                     :documentation
-"Lock protecting slots of this connection that are read and written by
+		    "Lock protecting slots of this connection that are read and written by
 concurrently running threads."))
   (:documentation "A connection to a Swank server."))
 
@@ -219,7 +219,7 @@ with ARGS bound to the corresponding values in the CDR of VALUE."
                          (destructuring-bind ((op &rest rands) &rest body) clause
                            `(,op (destructuring-bind ,rands ,operands
                                    . ,body)))))
-                   patterns)
+	    patterns)
          ,@(if (eq (caar (last patterns)) t)
                '()
                `((t (error "destructure-case failed: ~S" ,tmp))))))))
