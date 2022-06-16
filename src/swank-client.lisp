@@ -1,39 +1,19 @@
-;;;; Copyright 2011 Google Inc.
-;;;; Copyright 2007, 2008, 2009 Helmut Eller, Tobias C. Rittweiler
-;;;; Copyright 2004, 2005, 2006 Luke Gorrie, Helmut Eller
-;;;; Copyright 2003 Eric Marsden, Luke Gorrie, Helmut Eller
-
-;;;; This program is free software; you can redistribute it and/or
-;;;; modify it under the terms of the GNU General Public License
-;;;; as published by the Free Software Foundation; either version 2
-;;;; of the License, or (at your option) any later version.
-
-;;;; This program is distributed in the hope that it will be useful,
-;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;;;; GNU General Public License for more details.
-
-;;;; You should have received a copy of the GNU General Public License
-;;;; along with this program; if not, write to the Free Software
-;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-;;;; MA  02110-1301, USA.
-
-;;;; Author: Robert Brown <robert.brown@gmail.com>
-
-;;;; Swank client
-
 (in-package #:swank-client)
 
 (deftype port () "A non-privileged TCP/IP port number." '(integer 1024 65535))
 
-(defconst +abort+ (cons nil nil)
-  "Unique object used to signal that a computation was aborted on the server.")
+(define-constant +abort+ (cons nil nil)
+  :documentation
+  "Unique object used to signal that a computation was aborted on the server."
+  :test #'equal)
 
 (defvar *thread-offset* 0
   "Counter used to assign each Swank connection a unique range of thread IDs.")
 
-(defconst +maximum-thread-count+ 10000
-  "Maximum number of threads per Swank connection.")
+(define-constant +maximum-thread-count+ 10000
+  :documentation
+  "Maximum number of threads per Swank connection."
+  :test #'=)
 
 (define-condition slime-network-error (error)
   ()
@@ -133,8 +113,8 @@ symbols in the printed output contain their package names.")
   "Sends SEXP to a Swank server over USOCKET.  The s-expression is read and
 evaluated by the remote Lisp."
   (let* ((payload (with-standard-io-syntax
-                    (let ((*package* *io-package*))
-                      (prin1-to-string sexp))))
+		    (let ((*package* *io-package*))
+		      (prin1-to-string sexp))))
          (utf8-payload (string-to-utf8-octets payload))
          ;; The payload always includes one more octet, an encoded newline character at the end.
          (payload-length (1+ (length utf8-payload)))
@@ -159,7 +139,7 @@ if there are communications problems."
     (let ((success nil))
       (ignore-errors
        (progn (force-output (usocket:socket-stream usocket))
-              (setf success t)))
+	      (setf success t)))
       (unless success (error 'slime-network-error))))
   (values))
 
@@ -193,10 +173,10 @@ secret file and there are network problems sending its contents to the remote
 Swank server."
   (let ((usocket (handler-case (usocket:socket-connect host-name port :element-type 'octet)
                    (usocket:socket-error ()
-                     (return-from slime-net-connect nil)))))
+		     (return-from slime-net-connect nil)))))
     (socket-keep-alive (usocket:socket usocket))
     (let ((connection
-            (make-instance 'swank-connection :host-name host-name :port port :usocket usocket))
+	    (make-instance 'swank-connection :host-name host-name :port port :usocket usocket))
           (secret (slime-secret)))
       (when secret (slime-send secret connection))
       connection)))
@@ -213,20 +193,20 @@ with ARGS bound to the corresponding values in the CDR of VALUE."
             (,operator (car ,tmp))
             (,operands (cdr ,tmp)))
        (case ,operator
-         ,@(mapcar (lambda (clause)
-                     (if (eq (car clause) t)
-                         `(t ,@(cdr clause))
-                         (destructuring-bind ((op &rest rands) &rest body) clause
-                           `(,op (destructuring-bind ,rands ,operands
-                                   . ,body)))))
+	 ,@(mapcar (lambda (clause)
+		     (if (eq (car clause) t)
+			 `(t ,@(cdr clause))
+			 (destructuring-bind ((op &rest rands) &rest body) clause
+			   `(,op (destructuring-bind ,rands ,operands
+				   . ,body)))))
 	    patterns)
-         ,@(if (eq (caar (last patterns)) t)
-               '()
-               `((t (error "destructure-case failed: ~S" ,tmp))))))))
+	 ,@(if (eq (caar (last patterns)) t)
+	       '()
+	       `((t (error "destructure-case failed: ~S" ,tmp))))))))
 
 (defun send-to-emacs (event)
   "Sends EVENT to Emacs."
-  (swank::send (swank::mconn.control-thread (swank::default-connection)) event))
+  (slynk::send (slynk::mconn.control-thread (slynk::default-connection)) event))
 
 ;;;; Protocol event handler (the guts)
 
@@ -244,30 +224,30 @@ are communications problems."
     ((:emacs-rex form package-name thread continuation)
      (let ((id nil))
        (bordeaux-threads:with-lock-held ((connection-lock connection))
-         (setf id (incf (continuation-counter connection)))
-         (push (list id continuation form package-name thread) (rex-continuations connection))
-         (when (eq (state connection) :dead) (error 'slime-network-error)))
+	 (setf id (incf (continuation-counter connection)))
+	 (push (list id continuation form package-name thread) (rex-continuations connection))
+	 (when (eq (state connection) :dead) (error 'slime-network-error)))
        (let ((name (format nil "swank sender for ~A/~D" (host-name connection) (port connection))))
-         (bordeaux-threads:make-thread
-          (lambda ()
-            ;; Catch network errors so the Swank sender thread exits gracefully if there are
-            ;; communications problems with the remote Lisp.
-            (handler-case
-                (slime-send `(:emacs-rex ,form ,package-name ,thread ,id) connection)
-              (slime-network-error ())))
-          :name name))))
+	 (bordeaux-threads:make-thread
+	  (lambda ()
+	    ;; Catch network errors so the Swank sender thread exits gracefully if there are
+	    ;; communications problems with the remote Lisp.
+	    (handler-case
+		(slime-send `(:emacs-rex ,form ,package-name ,thread ,id) connection)
+	      (slime-network-error ())))
+	  :name name))))
     ((:return value id)
      (let ((send-to-emacs t))
        (bordeaux-threads:with-lock-held ((connection-lock connection))
-         (let ((rec (assoc id (rex-continuations connection))))
-           (when rec
-             (setf send-to-emacs nil)
-             (setf (rex-continuations connection) (remove rec (rex-continuations connection)))
-             (funcall (second rec) value))))
+	 (let ((rec (assoc id (rex-continuations connection))))
+	   (when rec
+	     (setf send-to-emacs nil)
+	     (setf (rex-continuations connection) (remove rec (rex-continuations connection)))
+	     (funcall (second rec) value))))
        ;; The value returned is not for us.  Forward it to Slime.
        (when send-to-emacs
-         (force-output)
-         (send-to-emacs `(:return ,(swank::current-thread) ,value ,id)))))
+	 (force-output)
+	 (send-to-emacs `(:return ,(slynk::current-thread) ,value ,id)))))
 
     ;; When a remote computation signals a condition and control ends up in the debugger, Swank
     ;; sends these events back to pop up a Slime breakpoint window.  Forward the events to Slime.
@@ -336,24 +316,24 @@ are communications problems."
   "Reads a Swank message from a network CONNECTION to a Swank server.  Returns
 the Swank event or NIL, if there was a problem reading data."
   (flet ((safe-read-sequence (buffer stream)
-           ;; We use IGNORE-ERRORS here to catch SB-INT:CLOSED-STREAM-ERROR on SBCL and any other
-           ;; system-dependent network or stream errors.
-           (let ((result (ignore-errors (read-sequence buffer stream))))
-             (unless result (return-from slime-net-read))
-             result)))
+	   ;; We use IGNORE-ERRORS here to catch SB-INT:CLOSED-STREAM-ERROR on SBCL and any other
+	   ;; system-dependent network or stream errors.
+	   (let ((result (ignore-errors (read-sequence buffer stream))))
+	     (unless result (return-from slime-net-read))
+	     result)))
     (let ((stream (usocket:socket-stream (usocket connection)))
-          (length-buffer (make-octet-vector 6)))
+	  (length-buffer (make-octet-vector 6)))
       (if (/= (safe-read-sequence length-buffer stream) 6)
-          nil
-          (let* ((length-string (utf8-octets-to-string length-buffer))
-                 (length (parse-integer length-string :radix 16))
-                 (message-buffer (make-octet-vector length)))
-            (if (/= (safe-read-sequence message-buffer stream) length)
-                nil
+	  nil
+	  (let* ((length-string (utf8-octets-to-string length-buffer))
+		 (length (parse-integer length-string :radix 16))
+		 (message-buffer (make-octet-vector length)))
+	    (if (/= (safe-read-sequence message-buffer stream) length)
+		nil
                 (let ((message (utf8-octets-to-string message-buffer)))
                   (with-standard-io-syntax
-                    (let ((*package* *io-package*))
-                      (read-from-string message))))))))))
+		    (let ((*package* *io-package*))
+		      (read-from-string message))))))))))
 
 (defmacro slime-rex ((&rest saved-vars) (sexp connection) &body continuations)
   "(slime-rex (VAR ...) (SEXP CONNECTION) CLAUSES ...)
@@ -375,8 +355,8 @@ Signals SLIME-NETWORK-ERROR when there are network problems sending SEXP."
   (let ((result (gensym)))
     `(let ,(loop for var in saved-vars
                  collect (etypecase var
-                           (symbol (list var var))
-                           (cons var)))
+			   (symbol (list var var))
+			   (cons var)))
        (slime-dispatch-event (list :emacs-rex
                                    ,sexp
                                    "COMMON-LISP-USER"
@@ -413,16 +393,16 @@ SLIME-NETWORK-ERROR when there are network problems sending SEXP."
                       connection
                       (lambda (x)
                         (bordeaux-threads:with-lock-held (done-lock)
-                          (setf result x
-                                result-available t)
-                          (bordeaux-threads:condition-notify done))))
+			  (setf result x
+				result-available t)
+			  (bordeaux-threads:condition-notify done))))
     (bordeaux-threads:with-lock-held (done-lock)
       ;; Do not call CONDITION-WAIT if our result is already available, since we would wait forever
       ;; on the DONE condition variable, which has already been notified.  Also, CONDITION-WAIT can
       ;; return spuriously before DONE has been notified, so wait again if our result is not yet
       ;; available.
       (loop until result-available
-            do (bordeaux-threads:condition-wait done done-lock)))
+	    do (bordeaux-threads:condition-wait done done-lock)))
     (when (and (consp result) (eq (car result) +abort+))
       (error "Evaluation aborted on ~s." (cdr result)))
     result))
@@ -437,38 +417,38 @@ otherwise, returns NIL."
 Signals SLIME-NETWORK-ERROR when there are network problems."
   (dolist (rec (rex-continuations old-connection))
     (destructuring-bind (id continuation form package-name thread)
-        rec
+	rec
       (declare (ignore id))
       (slime-dispatch-event `(:emacs-rex ,form ,package-name ,thread ,continuation)
-                            new-connection)))
+			    new-connection)))
   (setf (rex-continuations old-connection) '()))
 
 (defun slime-dispatch-events (connection connection-closed-hook)
   "Reads and dispatches incoming events for a CONNECTION to a Swank server.  If
 provided, function CONNECTION-CLOSED-HOOK is called when CONNECTION is closed."
   (flet ((close-connection ()
-           (bordeaux-threads:with-lock-held ((connection-lock connection))
-             (usocket:socket-close (usocket connection))
-             (setf (state connection) :dead))
-           (remove-open-connection connection)
-           (when connection-closed-hook (funcall connection-closed-hook))))
+	   (bordeaux-threads:with-lock-held ((connection-lock connection))
+	     (usocket:socket-close (usocket connection))
+	     (setf (state connection) :dead))
+	   (remove-open-connection connection)
+	   (when connection-closed-hook (funcall connection-closed-hook))))
     (loop (let ((event (slime-net-read connection)))
-            (unless event
-              (close-connection)
-              (return-from slime-dispatch-events))
-            ;; TODO(brown): Verify that this call to SLIME-DISPATCH-EVENTS will never signal
-            ;; SLIME-NETWORK-ERROR.
-            (slime-dispatch-event event connection))
-          (let ((state nil))
-            (bordeaux-threads:with-lock-held ((connection-lock connection))
-              (setf state (state connection)))
-            (ecase state
-              (:alive)
-              (:closing
-               (close-connection)
-               (return-from slime-dispatch-events))
-              (:dead
-               (return-from slime-dispatch-events)))))))
+	    (unless event
+	      (close-connection)
+	      (return-from slime-dispatch-events))
+	    ;; TODO(brown): Verify that this call to SLIME-DISPATCH-EVENTS will never signal
+	    ;; SLIME-NETWORK-ERROR.
+	    (slime-dispatch-event event connection))
+	  (let ((state nil))
+	    (bordeaux-threads:with-lock-held ((connection-lock connection))
+	      (setf state (state connection)))
+	    (ecase state
+	      (:alive)
+	      (:closing
+	       (close-connection)
+	       (return-from slime-dispatch-events))
+	      (:dead
+	       (return-from slime-dispatch-events)))))))
 
 (defun slime-connect (host-name port &optional connection-closed-hook)
   "Connects to the Swank server running on HOST-NAME that is listening on PORT.
@@ -502,5 +482,5 @@ connection to be closed when control exits BODY."
   `(let ((,variable (slime-connect ,host-name ,port ,connection-closed-hook)))
      (unless ,variable (error 'slime-network-error))
      (unwind-protect
-          (progn ,@body)
+	  (progn ,@body)
        (slime-close ,variable))))
