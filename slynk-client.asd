@@ -9,7 +9,6 @@
   :author "Robert Brown <robert.brown@gmail.com>"
   :license "GPL version 2.  See the copyright messages in individual files."
   :depends-on (:bordeaux-threads :alexandria :slynk :usocket)
-  ;;:in-order-to ((test-op (test-op slynk-client/test)))
   :components
   ((:module src
     :components
@@ -29,5 +28,3 @@
     :components
     ((:file "slynk-client-test")))))
 
-(defmethod perform ((operation test-op) (component (eql (find-system 'slynk-client/test))))
-  (symbol-call 'slynk-client-test 'test-slynk-client))
