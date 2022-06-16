@@ -1,4 +1,4 @@
-(in-package #:swank-client)
+(in-package #:slynk-client)
 
 (deftype octet () '(unsigned-byte 8))
 (deftype octet-vector (&optional length) `(simple-array octet (,length)))

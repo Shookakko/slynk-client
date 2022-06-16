@@ -1,4 +1,4 @@
-(in-package #:swank-client)
+(in-package #:slynk-client)
 
 (deftype port () "A non-privileged TCP/IP port number." '(integer 1024 65535))
 
@@ -8,30 +8,30 @@
   :test #'equal)
 
 (defvar *thread-offset* 0
-  "Counter used to assign each Swank connection a unique range of thread IDs.")
+  "Counter used to assign each Slynk connection a unique range of thread IDs.")
 
 (define-constant +maximum-thread-count+ 10000
   :documentation
-  "Maximum number of threads per Swank connection."
+  "Maximum number of threads per Slynk connection."
   :test #'=)
 
 (define-condition slime-network-error (error)
   ()
   (:documentation "Network problem while evaluating a form."))
 
-(defclass swank-connection ()
+(defclass slynk-connection ()
   ((host-name :reader host-name
               :type string
               :initarg :host-name
-              :documentation "Name of the host where the Swank server is running.")
+              :documentation "Name of the host where the Slynk server is running.")
    (port :reader port
          :type port
          :initarg :port
-         :documentation "Port number used to make a Swank server connection.")
+         :documentation "Port number used to make a Slynk server connection.")
    (usocket :reader usocket
             :type usocket:stream-usocket
             :initarg :usocket
-            :documentation "USOCKET used to communicate with the Swank server.")
+            :documentation "USOCKET used to communicate with the Slynk server.")
    (thread-offset :reader thread-offset
                   :initform (incf *thread-offset* +maximum-thread-count+)
                   :type (integer 0 *)
@@ -57,23 +57,23 @@ match each returned value with the continuation it should be passed to.")
                     :documentation
 		    "Lock protecting slots of this connection that are read and written by
 concurrently running threads."))
-  (:documentation "A connection to a Swank server."))
+  (:documentation "A connection to a Slynk server."))
 
-(defvar *open-connections* '() "List of all open Swank connections.")
+(defvar *open-connections* '() "List of all open Slynk connections.")
 (defvar *connections-lock* (bordeaux-threads:make-lock) "Lock protecting *OPEN-CONNECTIONS*.")
 
 (defun add-open-connection (connection)
-  "Adds CONNECTION to the set of open Swank connections."
+  "Adds CONNECTION to the set of open Slynk connections."
   (bordeaux-threads:with-lock-held (*connections-lock*)
     (push connection *open-connections*)))
 
 (defun remove-open-connection (connection)
-  "Removes CONNECTION from the set of open Swank connections."
+  "Removes CONNECTION from the set of open Slynk connections."
   (bordeaux-threads:with-lock-held (*connections-lock*)
     (setf *open-connections* (remove connection *open-connections*))))
 
 (defun find-connection-for-thread-id (thread-id)
-  "Returns the open Swank connection associated with THREAD-ID."
+  "Returns the open Slynk connection associated with THREAD-ID."
   (bordeaux-threads:with-lock-held (*connections-lock*)
     (let ((thread-offset (* (floor thread-id +maximum-thread-count+) +maximum-thread-count+)))
       (find thread-offset *open-connections* :key #'thread-offset))))
@@ -88,10 +88,10 @@ by the remote Lisp to which it will be sent."
 and if so forwards it.  When forwarding is successful, FORWARD-EVENT-TO-WORKER
 returns T; otherwise, it returns NIL.
 
-FORWARD-EVENT-TO-WORKER is called by code in Swank Crew's patch to Slime's
-swank.lisp source file.  The forwarding it performs is used by Swank Crew
+FORWARD-EVENT-TO-WORKER is called by code in Slynk Crew's patch to Slime's
+slynk.lisp source file.  The forwarding it performs is used by Slynk Crew
 to handle debugging of conditions signalled on remote worker Lisps.  See
-swank.lisp-patch in https://github.com/brown/swank-crew."
+slynk.lisp-patch in https://github.com/brown/slynk-crew."
   (let ((connection (find-connection-for-thread-id thread-id)))
     (when connection
       (let ((remote-thread-id (server-thread-id thread-id)))
@@ -99,10 +99,10 @@ swank.lisp-patch in https://github.com/brown/swank-crew."
       t)))
 
 (defvar *io-package*
-  (let ((package (make-package :swank-client-io-package :use '())))
+  (let ((package (make-package :slynk-client-io-package :use '())))
     (import '(nil t quote) package)
     package)
-  "A package used by the Swank client code when printing s-expressions, so that
+  "A package used by the Slynk client code when printing s-expressions, so that
 symbols in the printed output contain their package names.")
 
 (defun slime-net-encode-length (n)
@@ -110,7 +110,7 @@ symbols in the printed output contain their package names.")
   (format nil "~6,'0,X" n))
 
 (defun slime-net-send (sexp usocket)
-  "Sends SEXP to a Swank server over USOCKET.  The s-expression is read and
+  "Sends SEXP to a Slynk server over USOCKET.  The s-expression is read and
 evaluated by the remote Lisp."
   (let* ((payload (with-standard-io-syntax
 		    (let ((*package* *io-package*))
@@ -130,7 +130,7 @@ evaluated by the remote Lisp."
       (unless success (error 'slime-network-error)))))
 
 (defun slime-send (sexp connection)
-  "Sends SEXP to a Swank server using CONNECTION.  Signals SLIME-NETWORK-ERROR
+  "Sends SEXP to a Slynk server using CONNECTION.  Signals SLIME-NETWORK-ERROR
 if there are communications problems."
   (let ((usocket (usocket connection)))
     (slime-net-send sexp usocket)
@@ -166,17 +166,17 @@ considered dead if keep alive packets are lost."
         (sb-bsd-sockets:sockopt-tcp-keepintvl socket) 30))
 
 (defun slime-net-connect (host-name port)
-  "Establishes a connection to the Swank server listening on PORT of HOST-NAME.
-Returns a SWANK-CONNECTION when the connection attempt is successful.
+  "Establishes a connection to the Slynk server listening on PORT of HOST-NAME.
+Returns a SLYNK-CONNECTION when the connection attempt is successful.
 Otherwise, returns NIL.  May signal SLIME-NETWORK-ERROR if the user has a Slime
 secret file and there are network problems sending its contents to the remote
-Swank server."
+Slynk server."
   (let ((usocket (handler-case (usocket:socket-connect host-name port :element-type 'octet)
                    (usocket:socket-error ()
 		     (return-from slime-net-connect nil)))))
     (socket-keep-alive (usocket:socket usocket))
     (let ((connection
-	    (make-instance 'swank-connection :host-name host-name :port port :usocket usocket))
+	    (make-instance 'slynk-connection :host-name host-name :port port :usocket usocket))
           (secret (slime-secret)))
       (when secret (slime-send secret connection))
       connection)))
@@ -218,7 +218,7 @@ with ARGS bound to the corresponding values in the CDR of VALUE."
 ;;; from Lisp don't.
 
 (defun slime-dispatch-event (event connection)
-  "Handles EVENT for a Swank CONNECTION.  Signals SLIME-NETWORK-ERROR if there
+  "Handles EVENT for a Slynk CONNECTION.  Signals SLIME-NETWORK-ERROR if there
 are communications problems."
   (destructure-case event
     ((:emacs-rex form package-name thread continuation)
@@ -227,10 +227,10 @@ are communications problems."
 	 (setf id (incf (continuation-counter connection)))
 	 (push (list id continuation form package-name thread) (rex-continuations connection))
 	 (when (eq (state connection) :dead) (error 'slime-network-error)))
-       (let ((name (format nil "swank sender for ~A/~D" (host-name connection) (port connection))))
+       (let ((name (format nil "slynk sender for ~A/~D" (host-name connection) (port connection))))
 	 (bordeaux-threads:make-thread
 	  (lambda ()
-	    ;; Catch network errors so the Swank sender thread exits gracefully if there are
+	    ;; Catch network errors so the Slynk sender thread exits gracefully if there are
 	    ;; communications problems with the remote Lisp.
 	    (handler-case
 		(slime-send `(:emacs-rex ,form ,package-name ,thread ,id) connection)
@@ -249,7 +249,7 @@ are communications problems."
 	 (force-output)
 	 (send-to-emacs `(:return ,(slynk::current-thread) ,value ,id)))))
 
-    ;; When a remote computation signals a condition and control ends up in the debugger, Swank
+    ;; When a remote computation signals a condition and control ends up in the debugger, Slynk
     ;; sends these events back to pop up a Slime breakpoint window.  Forward the events to Slime.
     ;; Modify the thread ID of each event to uniquely identify which remote Lisp generated it.
     ((:debug-activate thread level &optional select)
@@ -313,8 +313,8 @@ are communications problems."
      (error "Unknown event received: ~S" event))))
 
 (defun slime-net-read (connection)
-  "Reads a Swank message from a network CONNECTION to a Swank server.  Returns
-the Swank event or NIL, if there was a problem reading data."
+  "Reads a Slynk message from a network CONNECTION to a Slynk server.  Returns
+the Slynk event or NIL, if there was a problem reading data."
   (flet ((safe-read-sequence (buffer stream)
 	   ;; We use IGNORE-ERRORS here to catch SB-INT:CLOSED-STREAM-ERROR on SBCL and any other
 	   ;; system-dependent network or stream errors.
@@ -366,7 +366,7 @@ Signals SLIME-NETWORK-ERROR when there are network problems sending SEXP."
                              ,connection))))
 
 (defun slime-eval-async (sexp connection &optional continuation)
-  "Sends SEXP over CONNECTION to a Swank server for evaluation, then immediately
+  "Sends SEXP over CONNECTION to a Slynk server for evaluation, then immediately
 returns.  Some time later, after the evaluation is finished, CONTINUATION is
 called with the result as argument.  Signals SLIME-NETWORK-ERROR when there are
 network problems sending SEXP."
@@ -381,7 +381,7 @@ network problems sending SEXP."
   (values))
 
 (defun slime-eval (sexp connection)
-  "Sends SEXP over CONNECTION to a Swank server for evaluation and waits for the
+  "Sends SEXP over CONNECTION to a Slynk server for evaluation and waits for the
 result.  When the result is received, it is returned.  Signals
 SLIME-NETWORK-ERROR when there are network problems sending SEXP."
   (let* ((done-lock (bordeaux-threads:make-lock "slime eval"))
@@ -424,7 +424,7 @@ Signals SLIME-NETWORK-ERROR when there are network problems."
   (setf (rex-continuations old-connection) '()))
 
 (defun slime-dispatch-events (connection connection-closed-hook)
-  "Reads and dispatches incoming events for a CONNECTION to a Swank server.  If
+  "Reads and dispatches incoming events for a CONNECTION to a Slynk server.  If
 provided, function CONNECTION-CLOSED-HOOK is called when CONNECTION is closed."
   (flet ((close-connection ()
 	   (bordeaux-threads:with-lock-held ((connection-lock connection))
@@ -451,24 +451,24 @@ provided, function CONNECTION-CLOSED-HOOK is called when CONNECTION is closed."
 	       (return-from slime-dispatch-events)))))))
 
 (defun slime-connect (host-name port &optional connection-closed-hook)
-  "Connects to the Swank server running on HOST-NAME that is listening on PORT.
-Returns a SWANK-CONNECTION if the connection attempt is successful.  Otherwise,
+  "Connects to the Slynk server running on HOST-NAME that is listening on PORT.
+Returns a SLYNK-CONNECTION if the connection attempt is successful.  Otherwise,
 returns NIL.  May signal SLIME-NETWORK-ERROR if the user has a Slime secret file
-and there are network problems sending its contents to the remote Swank server.
+and there are network problems sending its contents to the remote Slynk server.
 If provided, function CONNECTION-CLOSED-HOOK is called when the connection is
 closed."
   (let ((connection (slime-net-connect host-name port)))
     (when connection
       (add-open-connection connection)
       ;; Create a thread to handle incoming events from the remote Lisp.
-      (let ((name (format nil "swank dispatcher for ~A/~D" host-name port)))
+      (let ((name (format nil "slynk dispatcher for ~A/~D" host-name port)))
         (bordeaux-threads:make-thread (lambda ()
                                         (slime-dispatch-events connection connection-closed-hook))
                                       :name name)))
     connection))
 
 (defun slime-close (connection)
-  "Closes CONNECTION to a Swank server."
+  "Closes CONNECTION to a Slynk server."
   (bordeaux-threads:with-lock-held ((connection-lock connection))
     (setf (state connection) :closing))
   (slime-eval-async nil connection)
@@ -477,7 +477,7 @@ closed."
 (defmacro with-slime-connection ((variable host-name port &optional connection-closed-hook)
                                  &body body)
   "Wraps BODY in a LET form where VARIABLE is bound to the value returned by
-(SLIME-CONNECT HOST-NAME PORT CONNECTION-CLOSED-HOOK).  Arranges for the Swank
+(SLIME-CONNECT HOST-NAME PORT CONNECTION-CLOSED-HOOK).  Arranges for the Slynk
 connection to be closed when control exits BODY."
   `(let ((,variable (slime-connect ,host-name ,port ,connection-closed-hook)))
      (unless ,variable (error 'slime-network-error))
