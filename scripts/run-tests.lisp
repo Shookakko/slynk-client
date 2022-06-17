@@ -1,7 +1,9 @@
 (require :asdf)
 
-(asdf:load-system :slynk-client)
-(asdf:load-system :slynk-client/test)
+(asdf:clear-configuration)
+
+(asdf:operate 'asdf:load-op ':slynk-client)
+(asdf:operate 'asdf:load-op ':slynk-client/test)
 
 ;; Insert 5am project suite name
 ;; (5am:run! ...)
