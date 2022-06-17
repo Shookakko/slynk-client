@@ -16,4 +16,4 @@ mkdir -p $HOME/quicklisp/local-projects
 
 cp scripts/lisp-init $HOME/.sbclrc 
 
-cp -R ../actor $HOME/quicklisp/local-projects/ 
+cp -R ../slynk-client $HOME/quicklisp/local-projects/ 

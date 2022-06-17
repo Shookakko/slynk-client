@@ -4,7 +4,7 @@
 (defsystem slynk-client
   :name "Slynk Client"
   :description "Client side of the Slynk protocol."
-  :long-description "An implementation of the client side of Slime's Slynk debugging protocol."
+  :long-description "An implementation of the client side of Sly's Slynk debugging protocol."
   :version "1.6"
   :author "Robert Brown <robert.brown@gmail.com>"
   :license "GPL version 2.  See the copyright messages in individual files."
