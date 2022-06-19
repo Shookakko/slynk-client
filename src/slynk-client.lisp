@@ -143,13 +143,6 @@ if there are communications problems."
       (unless success (error 'slime-network-error))))
   (values))
 
-(defun slime-secret ()
-  "Finds the secret file in the user's home directory.  Returns NIL if the file
-doesn't exist; otherwise, returns the first line of the file."
-  (let ((secret-file (merge-pathnames (user-homedir-pathname) #p".slime-secret")))
-    (with-open-file (input secret-file :if-does-not-exist nil)
-      (when input (read-line input nil "")))))
-
 (defun socket-keep-alive (socket)
   "Configures TCP keep alive packets for SOCKET.  The socket connection will be
 considered dead if keep alive packets are lost."
