@@ -1,25 +1,24 @@
-# Swank Client
 
-Swank Client is a Common Lisp implementation of the client side of the Swank
-debugging protocol used by [Slime](https://en.wikipedia.org/wiki/SLIME), a [GNU
+# Slynk Client
+
+Slynk Client is a Common Lisp implementation of the client side of the Slynk
+debugging protocol used by [Sly](https://joaotavora.github.io/sly/), a [GNU
 Emacs](https://www.gnu.org/software/emacs) mode that implements an IDE for Lisp
-programming.  Emacs uses the Swank protocol to communicate with a Lisp system
+programming.
+Emacs uses the Slynk protocol to communicate with a Lisp system
 when a user runs the IDE, but the protocol is useful independently of Emacs
 because it allows a client to evaluate expressions on a remote Lisp that's
-running a Swank server.
+running a Slynk server.
 
-Swank Client is used by [Swank Crew](https://github.com/brown/swank-crew) to
-implement a Slime IDE for developing distributed algorithms in Lisp.
-
-## The Swank Client API
+## The Slynk Client API
 
 #### slime-connect host-name port &optional connection-closed-hook
 
 ```
-Connects to the Swank server running on HOST-NAME that is listening on PORT.
-Returns a SWANK-CONNECTION if the connection attempt is successful.  Otherwise,
+Connects to the Slynk server running on HOST-NAME that is listening on PORT.
+Returns a SLYNK-CONNECTION if the connection attempt is successful.  Otherwise,
 returns NIL.  May signal SLIME-NETWORK-ERROR if the user has a Slime secret
-file and there are network problems sending its contents to the remote Swank
+file and there are network problems sending its contents to the remote Slynk
 server.  If provided, function CONNECTION-CLOSED-HOOK is called when the
 connection is closed.
 ```
@@ -27,13 +26,13 @@ connection is closed.
 #### slime-close connection
 
 ```
-Closes CONNECTION to a Swank server.
+Closes CONNECTION to a Slynk server.
 ```
 
 #### slime-eval sexp connection
 
 ```
-Sends SEXP over CONNECTION to a Swank server for evaluation and waits for the
+Sends SEXP over CONNECTION to a Slynk server for evaluation and waits for the
 result.  When the result is received, it is returned.  Signals
 SLIME-NETWORK-ERROR when there are network problems sending SEXP.
 ```
@@ -41,7 +40,7 @@ SLIME-NETWORK-ERROR when there are network problems sending SEXP.
 #### slime-eval-async sexp connection &optional continuation
 
 ```
-Sends SEXP over CONNECTION to a Swank server for evaluation, then immediately
+Sends SEXP over CONNECTION to a Slynk server for evaluation, then immediately
 returns.  Some time later, after the evaluation is finished, CONTINUATION is
 called with the result as argument.  Signals SLIME-NETWORK-ERROR when there are
 network problems sending SEXP.
@@ -65,65 +64,64 @@ otherwise, returns NIL.
 
 ```
 Wraps BODY in a LET form where VARIABLE is bound to the value returned by
-(SLIME-CONNECT HOST-NAME PORT CONNECTION-CLOSED-HOOK).  Arranges for the Swank
+(SLIME-CONNECT HOST-NAME PORT CONNECTION-CLOSED-HOOK).  Arranges for the Slynk
 connection to be closed when control exits BODY.
 ```
 
 For more information, see the documentation strings in
-[swank-client.lisp](https://github.com/brown/swank-client/blob/master/swank-client.lisp)
+[slynk-client.lisp](https://gitlab.com/shookakko/slynk-client/-/blob/master/src/slynk-client.lisp)
 and the example code in
-[swank-client-test.lisp](https://github.com/brown/swank-client/blob/master/swank-client-test.lisp).
+[slynk-client-test.lisp](https://gitlab.com/shookakko/slynk-client/-/blob/master/tests/slynk-client-test.lisp).
 
-## Swank Client example
+## Slynk Client example
 
-### Starting a Swank server
+### Starting a Slynk server
 
-The code below starts two Swank servers, one listening on port 4005 and the
+The code below starts two Slynk servers, one listening on port 4005 and the
 other listening on port 10000.
 
 ```
 (load-quicklisp)
-(asdf:load-system 'com.google.base)
-(asdf:load-system 'swank)
+(asdf:load-system 'slynk)
 
 (defvar *emacs-port* 4005)
-(defvar *swank-client-port* 10000)
+(defvar *slynk-client-port* 10000)
 
-(defun swank-thread ()
-  "Returns a thread that's acting as a Swank server."
+(defun slynk-thread ()
+  "Returns a thread that's acting as a Slynk server."
   (dolist (thread (sb-thread:list-all-threads))
-    (when (com.google.base:prefixp "Swank" (sb-thread:thread-name thread))
+    (when (com.google.base:prefixp "Slynk" (sb-thread:thread-name thread))
       (return thread))))
 
-(defun wait-for-swank-thread ()
-  "Wait for the Swank server thread to exit."
-  (let ((swank-thread (swank-thread)))
-    (when swank-thread
-      (sb-thread:join-thread swank-thread))))
+(defun wait-for-slynk-thread ()
+  "Wait for the Slynk server thread to exit."
+  (let ((slynk-thread (slynk-thread)))
+    (when slynk-thread
+      (sb-thread:join-thread slynk-thread))))
 
 (defun main ()
-  (setf swank:*configure-emacs-indentation* nil
-        swank::*enable-event-history* nil
-        swank:*log-events* t)
-  (swank:create-server :port *emacs-port* :dont-close t)
-  (swank:create-server :port *swank-client-port* :dont-close t)
-  (wait-for-swank-thread))
+  (setf slynk:*configure-emacs-indentation* nil
+        slynk::*enable-event-history* nil
+        slynk:*log-events* t)
+  (slynk:create-server :port *emacs-port* :dont-close t)
+  (slynk:create-server :port *slynk-client-port* :dont-close t)
+  (wait-for-slynk-thread))
 
 (main)
 ```
 
-### Using Swank Client to evaluate an expression on the server
+### Using Slynk Client to evaluate an expression on the server
 
-Once the Swank servers are running, you can connect to the server on port 4005
+Once the Slynk servers are running, you can connect to the server on port 4005
 from Emacs using the command ```M-x slime-connect```.  This connection is a
 normal Slime IDE session.  From the Slime IDE you can evaluate the following
-code, which creates a Swank Client connection to the server running on port
+code, which creates a Slynk Client connection to the server running on port
 10000 and remotely evaluates the expression ```(cons 1 2)```.
 
 ```
 (load-quicklisp)
-(asdf:load-system 'swank-client)
+(asdf:load-system 'slynk-client)
 
-(swank-client:with-slime-connection (connection "localhost" 10000)
-  (swank-client:slime-eval '(cons 1 2) connection))
+(slynk-client:with-slime-connection (connection "localhost" 10000)
+  (slynk-client:slime-eval '(cons 1 2) connection))
 ```
