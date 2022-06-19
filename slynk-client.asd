@@ -13,8 +13,8 @@
   ((:module src
     :components
     ((:file "package")
-     (:file "util")
-     (:file "slynk-client" :depends-on ("util" "package"))))))
+     (:file "lib")
+     (:file "slynk-client" :depends-on ("lib" "package"))))))
 
 (defsystem slynk-client/test
   :name "Slynk Client test"
