@@ -174,29 +174,6 @@ Slynk server."
       (when secret (slime-send secret connection))
       connection)))
 
-(defmacro destructure-case (value &body patterns)
-  "Dispatches VALUE to one of PATTERNS.  A cross between CASE and DESTRUCTURING-BIND.
-The pattern syntax is: ((HEAD . ARGS) . BODY).  The list of patterns is searched
-for a HEAD that's EQ to the car of VALUE.  If one is found, BODY is executed
-with ARGS bound to the corresponding values in the CDR of VALUE."
-  (let ((operator (gensym "op-"))
-        (operands (gensym "rand-"))
-        (tmp (gensym "tmp-")))
-    `(let* ((,tmp ,value)
-            (,operator (car ,tmp))
-            (,operands (cdr ,tmp)))
-       (case ,operator
-	 ,@(mapcar (lambda (clause)
-		     (if (eq (car clause) t)
-			 `(t ,@(cdr clause))
-			 (destructuring-bind ((op &rest rands) &rest body) clause
-			   `(,op (destructuring-bind ,rands ,operands
-				   . ,body)))))
-	    patterns)
-	 ,@(if (eq (caar (last patterns)) t)
-	       '()
-	       `((t (error "destructure-case failed: ~S" ,tmp))))))))
-
 (defun send-to-emacs (event)
   "Sends EVENT to Emacs."
   (slynk::send (slynk::mconn.control-thread (slynk::default-connection)) event))
