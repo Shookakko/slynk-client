@@ -59,23 +59,32 @@ match each returned value with the continuation it should be passed to.")
 concurrently running threads."))
   (:documentation "A connection to a Slynk server."))
 
-(defvar *open-connections* '() "List of all open Slynk connections.")
-(defvar *connections-lock* (bordeaux-threads:make-lock) "Lock protecting *OPEN-CONNECTIONS*.")
+(defvar *open-connections* '()
+  "List of all open Slynk connections.")
 
-(defun add-open-connection (connection)
-  "Adds CONNECTION to the set of open Slynk connections."
+(defvar *connections-lock* (bordeaux-threads:make-lock)
+  "Lock protecting *OPEN-CONNECTIONS*.")
+(defgeneric add-open-connection (connection)
+  (:documentation
+   "Adds CONNECTION to the set of open Slynk connections."))
+
+(defmethod add-open-connection ((connection slynk-connection))
   (bordeaux-threads:with-lock-held (*connections-lock*)
     (push connection *open-connections*)))
 
-(defun remove-open-connection (connection)
-  "Removes CONNECTION from the set of open Slynk connections."
+(defgeneric remove-open-connection (conection)
+  (:documentation
+   "Removes CONNECTION from the set of open Slynk connections."))
+
+(defmethod remove-open-connection ((connection slynk-connection))
   (bordeaux-threads:with-lock-held (*connections-lock*)
     (setf *open-connections* (remove connection *open-connections*))))
 
 (defun find-connection-for-thread-id (thread-id)
   "Returns the open Slynk connection associated with THREAD-ID."
   (bordeaux-threads:with-lock-held (*connections-lock*)
-    (let ((thread-offset (* (floor thread-id +maximum-thread-count+) +maximum-thread-count+)))
+    (let ((thread-offset (* (floor thread-id +maximum-thread-count+)
+			    +maximum-thread-count+)))
       (find thread-offset *open-connections* :key #'thread-offset))))
 
 (defun server-thread-id (thread-id)
@@ -126,7 +135,8 @@ evaluated by the remote Lisp."
     (setf (aref message (1- (length message))) (char-code #\Newline))
     ;; We use IGNORE-ERRORS here to catch SB-INT:CLOSED-STREAM-ERROR on SBCL and any other
     ;; system-dependent network or stream errors.
-    (let ((success (ignore-errors (write-sequence message (usocket:socket-stream usocket)))))
+    (let ((success (ignore-errors
+		    (write-sequence message (usocket:socket-stream usocket)))))
       (unless success (error 'slime-network-error)))))
 
 (defun slime-send (sexp connection)
@@ -164,19 +174,22 @@ Returns a SLYNK-CONNECTION when the connection attempt is successful.
 Otherwise, returns NIL.  May signal SLIME-NETWORK-ERROR if the user has a Slime
 secret file and there are network problems sending its contents to the remote
 Slynk server."
-  (let ((usocket (handler-case (usocket:socket-connect host-name port :element-type 'octet)
+  (let ((usocket (handler-case
+		     (usocket:socket-connect host-name port :element-type 'octet)
                    (usocket:socket-error ()
 		     (return-from slime-net-connect nil)))))
     (socket-keep-alive (usocket:socket usocket))
     (let ((connection
-	    (make-instance 'slynk-connection :host-name host-name :port port :usocket usocket))
-          (secret (slime-secret)))
-      (when secret (slime-send secret connection))
+	    (make-instance
+	     'slynk-connection :host-name host-name :port port :usocket usocket)))
       connection)))
 
+;;TODO: Evaluate the real value of this function
 (defun send-to-emacs (event)
   "Sends EVENT to Emacs."
-  (slynk::send (slynk::mconn.control-thread (slynk::default-connection)) event))
+  (print event)
+  ;;(slynk::send (slynk::mconn.control-thread (slynk::default-connection)) event)
+  )
 
 ;;;; Protocol event handler (the guts)
 
@@ -227,6 +240,7 @@ are communications problems."
      (send-to-emacs `(:debug-activate ,thread ,level ,select)))
     ((:debug thread level condition restarts frames continuations)
      (incf thread (thread-offset connection))
+     ;;TODO: Change this there is no Emacs here
      (send-to-emacs `(:debug ,thread ,level ,condition ,restarts ,frames ,continuations)))
     ((:debug-return thread level stepping)
      (incf thread (thread-offset connection))
